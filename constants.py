@@ -14,7 +14,6 @@ CLOUD_SQL_CONNECTION = {
     "password": os.environ.get("PASSWORD"),
     "port": 5432,    
 }
-print(CLOUD_SQL_CONNECTION)
 
 TABLE_METADATA = {
     "customers": "Contains the information about customers",
@@ -36,6 +35,8 @@ The following is the information about table schema present in the PostgreSQL:
 Convert this natural language query to PostgreSQL SQL Query:
 "{nl_query}"
 
+First, determine the operation type (INSERT, READ, UPDATE, or DELETE) and then generate the appropriate query.
+
 Note:
 - Use PostgreSQL syntax
 - Include proper table aliases when joining
@@ -43,13 +44,15 @@ Note:
 - Ensure proper handling of NULL values
 - Consider table relationships when joining
 - Use table descriptions to understand the context better
+- For INSERT operations, include RETURNING clause to get the created record
+- For UPDATE operations, include RETURNING clause to get the updated record
+- For DELETE operations, include RETURNING clause to get the deleted record
 
-Respond only with the SQL query, no additional text or explanations.
-
-Output Format:
+Respond with the operation type and SQL query in JSON format:
 ```json
 {{
-    "query": "<sql query>"
+    "operation": "<OPERATION_TYPE>",
+    "query": "<sql_query>"
 }}
 ```
 """

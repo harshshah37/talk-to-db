@@ -2,24 +2,25 @@ import re
 import json
 import vertexai
 import psycopg2
-from typing import Dict, List, Any
+from enum import Enum
+from typing import Dict, List, Any, Tuple, Optional
 from psycopg2.extras import RealDictCursor
 from vertexai.generative_models import GenerativeModel
 from constants import (
-    PROJECT_ID, NL2SQL_PROMPT, 
-    MODEL_NAME, SYSTEM_PROMPT,
-    GENERATION_CONFIG
-    )
+    PROJECT_ID, MODEL_NAME, SYSTEM_PROMPT,
+    GENERATION_CONFIG, NL2SQL_PROMPT
+)
+
+class OperationType(Enum):
+    INSERT = "INSERT"
+    READ = "READ"
+    UPDATE = "UPDATE"
+    DELETE = "DELETE"
+    UNKNOWN = "UNKNOWN"
 
 class NLToPostgresProcessor:
     def __init__(self, connection_params: Dict[str, str], table_metadata: Dict[str, str]):
-        """
-        Initialize the processor with database connection and table information.
-        
-        Args:
-            connection_params: Database connection parameters
-            table_metadata: Dictionary mapping table names to their descriptions
-        """
+        """Initialize with enhanced functionality for CRUD operations."""
         vertexai.init(project=PROJECT_ID)
         self.table_metadata = table_metadata
         self.connection_params = connection_params
@@ -27,7 +28,6 @@ class NLToPostgresProcessor:
             model_name=MODEL_NAME,
             system_instruction=SYSTEM_PROMPT
         )
-        
         self.schema_cache: Dict[str, List[Dict[str, str]]] = {}
 
     def _get_db_connection(self):
@@ -128,59 +128,112 @@ class NLToPostgresProcessor:
         
         return context
     
-    def _extract_query(self, text):
-        # Pattern to match JSON content between ```json and ```
+    def _extract_query_info(self, text: str) -> Tuple[OperationType, str]:
+        """Extract operation type and query from the model response."""
         pattern = r'```json\s*({[^}]+})\s*```'
-        
-        # Find the match
         match = re.search(pattern, text, re.DOTALL)
-        if match:
-            json_str = match.group(1)
-            try:
-                # Parse the JSON string
-                data = json.loads(json_str)
-                # Extract the query value
-                return data.get('query')
-            except json.JSONDecodeError:
-                return "Error: Invalid JSON format"
-        return "Error: No JSON found"
-
-    def _generate_query(self, nl_query: str) -> str:
-        """Generate SQL query from natural language using Gemini."""
-        context = self._build_context_prompt()
-        prompt = NL2SQL_PROMPT.format(
-            context=context,
-            nl_query=nl_query
-        )
-
-        response = self.model.generate_content(
-            prompt,
-            generation_config=GENERATION_CONFIG
-        )
         
-        return self._extract_query(response.text.strip())
+        if match:
+            try:
+                data = json.loads(match.group(1))
+                operation = OperationType[data.get('operation', 'UNKNOWN')]
+                query = data.get('query', '')
+                return operation, query
+            except (json.JSONDecodeError, KeyError):
+                return OperationType.UNKNOWN, ""
+        return OperationType.UNKNOWN, ""
+    
+    def _format_response(self, operation: OperationType, status: str, 
+                        sql_query: str, results: Optional[List[Dict]] = None, 
+                        message: Optional[str] = None) -> Dict[str, Any]:
+        """Format the response based on the operation type and results."""
+        response = {
+            "operation": operation.value,
+            "status": status,
+            "sql_query": sql_query
+        }
 
-    def query_db(self, nl_query: str) -> Dict[str, Any]:
-        """Execute a natural language query and return the results."""
+        if status == "success":
+            if operation == OperationType.INSERT:
+                response["created_record"] = results[0] if results else None
+            elif operation == OperationType.READ:
+                response["results"] = results
+            elif operation == OperationType.UPDATE:
+                response["updated_records"] = results
+            elif operation == OperationType.DELETE:
+                response["deleted_records"] = results
+        else:
+            response["message"] = message
+
+        return response
+
+    def _execute_query(self, operation: OperationType, sql_query: str) -> Tuple[List[Dict], Optional[str]]:
+        """Execute the SQL query and return results based on operation type."""
         try:
-            # Generate SQL query
-            sql_query = self._generate_query(nl_query)
-            
-            # Execute query
             with self._get_db_connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute(sql_query)
-                    rows = cur.fetchall()
+                    
+                    if operation != OperationType.READ:
+                        conn.commit()
+                    
+                    if operation in [OperationType.INSERT, OperationType.UPDATE, OperationType.DELETE]:
+                        rows = cur.fetchall() if cur.description else []
+                    else:  # READ operation
+                        rows = cur.fetchall()
+                    
+                    return [dict(row) for row in rows], None
+                    
+        except Exception as e:
+            return [], str(e)
+
+    def query_db(self, nl_query: str) -> Dict[str, Any]:
+        """Process natural language query and execute corresponding CRUD operation."""
+        try:
+            # Generate SQL query with operation type
+            context = self._build_context_prompt()
+            prompt = NL2SQL_PROMPT.format(
+                context=context,
+                nl_query=nl_query
+            )
             
-            return {
-                "status": "success",
-                "sql_query": sql_query,
-                "results": [dict(row) for row in rows]
-            }
+            response = self.model.generate_content(
+                prompt,
+                generation_config=GENERATION_CONFIG
+            )
+            
+            operation, sql_query = self._extract_query_info(response.text.strip())
+            
+            if operation == OperationType.UNKNOWN or not sql_query:
+                return self._format_response(
+                    operation=OperationType.UNKNOWN,
+                    status="error",
+                    sql_query=sql_query,
+                    message="Failed to determine operation type or generate valid query"
+                )
+            
+            # Execute the query
+            results, error = self._execute_query(operation, sql_query)
+            
+            if error:
+                return self._format_response(
+                    operation=operation,
+                    status="error",
+                    sql_query=sql_query,
+                    message=error
+                )
+            
+            return self._format_response(
+                operation=operation,
+                status="success",
+                sql_query=sql_query,
+                results=results
+            )
             
         except Exception as e:
-            return {
-                "status": "error",
-                "message": str(e),
-                "sql_query": sql_query if 'sql_query' in locals() else None
-            }
+            return self._format_response(
+                operation=OperationType.UNKNOWN,
+                status="error",
+                sql_query=sql_query if 'sql_query' in locals() else None,
+                message=str(e)
+            )
