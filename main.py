@@ -22,4 +22,5 @@ if results["status"] == "success":
     for row in results["results"]:
         print(row)
 else:
+    print(results)
     print("Error:", results["message"])

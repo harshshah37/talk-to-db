@@ -1,3 +1,5 @@
+import re
+import json
 import vertexai
 import psycopg2
 from typing import Dict, List, Any
@@ -125,6 +127,23 @@ class NLToPostgresProcessor:
                     context += f"- {table_name}.{field['name']} relates to {field['foreign_key']['references_table']}.{field['foreign_key']['references_column']}\n"
         
         return context
+    
+    def _extract_query(self, text):
+        # Pattern to match JSON content between ```json and ```
+        pattern = r'```json\s*({[^}]+})\s*```'
+        
+        # Find the match
+        match = re.search(pattern, text, re.DOTALL)
+        if match:
+            json_str = match.group(1)
+            try:
+                # Parse the JSON string
+                data = json.loads(json_str)
+                # Extract the query value
+                return data.get('query')
+            except json.JSONDecodeError:
+                return "Error: Invalid JSON format"
+        return "Error: No JSON found"
 
     def _generate_query(self, nl_query: str) -> str:
         """Generate SQL query from natural language using Gemini."""
@@ -139,7 +158,7 @@ class NLToPostgresProcessor:
             generation_config=GENERATION_CONFIG
         )
         
-        return response.text.strip()
+        return self._extract_query(response.text.strip())
 
     def query_db(self, nl_query: str) -> Dict[str, Any]:
         """Execute a natural language query and return the results."""

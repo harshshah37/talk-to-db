@@ -10,10 +10,11 @@ MODEL_NAME = os.environ.get("MODEL_NAME")
 CLOUD_SQL_CONNECTION = {
     "host": "127.0.0.1",
     "database": os.environ.get("DATABASE_NAME"),
-    "user": os.environ.get("USERNAME"),
+    "user": "anpenma",
     "password": os.environ.get("PASSWORD"),
-    "port": 5432
+    "port": 5432,    
 }
+print(CLOUD_SQL_CONNECTION)
 
 TABLE_METADATA = {
     "customers": "Contains the information about customers",
@@ -33,7 +34,7 @@ The following is the information about table schema present in the PostgreSQL:
 {context}
 
 Convert this natural language query to PostgreSQL SQL Query:
-"{natural_language_query}"
+"{nl_query}"
 
 Note:
 - Use PostgreSQL syntax
@@ -44,4 +45,11 @@ Note:
 - Use table descriptions to understand the context better
 
 Respond only with the SQL query, no additional text or explanations.
+
+Output Format:
+```json
+{{
+    "query": "<sql query>"
+}}
+```
 """
