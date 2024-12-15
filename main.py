@@ -1,60 +1,65 @@
-from db_processors import NLToPostgresProcessor
-from constants import CLOUD_SQL_CONNECTION, TABLE_METADATA
+import streamlit as st
 
-def print_results(results: dict):
-    """Pretty print the results based on operation type."""
-    print("\nOperation:", results["operation"])
-    print("Status:", results["status"])
-    print("\nGenerated SQL Query:")
-    print(results["sql_query"])
-    
-    if results["status"] == "success":
-        if results["operation"] == "INSERT":
-            print("\nInserted Record:")
-            print(results["created_record"])
-        elif results["operation"] == "READ":
-            print("\nResults:")
-            for row in results["results"]:
-                print(row)
-        elif results["operation"] == "UPDATE":
-            print("\nUpdated Records:")
-            for record in results["updated_records"]:
-                print(record)
-        elif results["operation"] == "DELETE":
-            print("\nDeleted Records:")
-            for record in results["deleted_records"]:
-                print(record)
-    else:
-        print("\nError:", results["message"])
+st.set_page_config(
+    page_title = "NL Query Builder",
+    page_icon = "✏️",
+    layout = "wide"
+)
 
-def main():
-    # Initialize the processor
-    processor = NLToPostgresProcessor(
-        connection_params=CLOUD_SQL_CONNECTION,
-        table_metadata=TABLE_METADATA
+from pages.login import login
+from pages.signup import signup
+from pages.query_page import query_page
+from modules.nav import nav_bar
+
+def navigate_to(page):
+    st.session_state.page = page 
+    st.rerun()  
+
+if "page" not in st.session_state:
+    st.session_state.page = "main" 
+
+if st.session_state.page == "main":
+
+    nav_bar()
+
+    st.markdown(
+        """
+        <div style="background-color:#4CAF50;padding:10px;border-radius:8px;">
+            <h1 style="color:white;text-align:center;">Welcome to the App</h1>
+        </div>
+        """,
+        unsafe_allow_html = True
     )
 
-    # Example queries for different CRUD operations
-    queries = [
-        # INSERT example
-        "Insert the data of the stockcode 52353A with description of ADT T-SHIRT and unitprice of 4.44",
-        
-        # READ example
-        "Fetch the details of the stockcode of 52353A",
-        
-        # UPDATE example
-        "Update the unitprice as 3.22 for the stockcode of 52353A",
-        
-        # # DELETE example
-        "Delete the record of stockcode 52353A"
-    ]
+    st.markdown(
+        """
+        <h3 style="text-align:center;color:#333;">Your gateway to streamlined query generation and management</h3>
+        <hr style="border-top: 2px solid #4CAF50;">
+        """,
+        unsafe_allow_html = True
+    )
 
-    # Process each query
-    for query in queries:
-        print("\n" + "="*50)
-        print("Processing query:", query)
-        results = processor.query_db(query)
-        print_results(results)
+    col1, col2, col3 = st.columns([1, 1, 1]) 
+    with col2:
+        col_login, col_signup = st.columns([1, 1])  
+        with col_login:
+            if st.button("🔑 Login", key = "login_button"):
+                navigate_to("login")
+        with col_signup:
+            if st.button("📝 Sign Up", key = "signup_button"):
+                navigate_to("signup")
 
-if __name__ == "__main__":
-    main()
+    st.markdown(
+        """
+        <hr>
+        <p style="text-align:center;color:gray;font-size:14px;">Designed for simplicity and efficiency</p>
+        """,
+        unsafe_allow_html = True
+    )
+
+elif st.session_state.page == "login":
+    login(navigate_to) 
+elif st.session_state.page == "signup":
+    signup(navigate_to) 
+elif st.session_state.page == "query_page":
+    query_page(navigate_to)  
