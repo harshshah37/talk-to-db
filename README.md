@@ -1,7 +1,7 @@
 # talk-to-db
 
 ## Repository Overview
-The repository **talk-to-db** contains code for an application that performs SQL database operations using natural language, powered by the Gemini 1.5 Pro flash model.
+The repository **talk-to-db** contains code for the streamlit web application that performs SQL database operations using natural language, powered by the Gemini 1.5 Pro flash model.
 
 ## Prerequisites
 - Python 3.8 or higher installed
@@ -45,6 +45,14 @@ The repository **talk-to-db** contains code for an application that performs SQL
    DATABASE_NAME=<Your Database Name>
    PORT=<Database Port, e.g., 3306>
    PASSWORD=<Your Database Password>
+   FB_API_KEY=<FB_API_KEY>
+   FB_AUTH_DOMAIN=<FB_AUTH_DOMAIN>
+   FB_DB_URL=<FB_DB_URL>
+   FB_PROJECT_ID=<FB_PROJECT>
+   FB_STORAGE_BUCKET=<FB_STORAGE_BUCKET>
+   FB_MSG_SENDER_ID=<FB_MSG_SENDER_ID>
+   FB_APP_ID=<FB_APP_ID>
+   FB_MEASUREMENT_ID=<FB_MEASUREMENT_ID>
    ```
 
 5. **Set Up Cloud SQL Proxy**
@@ -67,5 +75,5 @@ The repository **talk-to-db** contains code for an application that performs SQL
 
 6. **Run the Application**
    ```bash
-   python main.py
+   streamlit run main.py
    ```
