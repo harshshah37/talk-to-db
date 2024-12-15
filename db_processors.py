@@ -6,7 +6,7 @@ from enum import Enum
 from typing import Dict, List, Any, Tuple, Optional
 from psycopg2.extras import RealDictCursor
 from vertexai.generative_models import GenerativeModel
-from constants import (
+from config import (
     PROJECT_ID, MODEL_NAME, SYSTEM_PROMPT,
     GENERATION_CONFIG, NL2SQL_PROMPT
 )
@@ -344,12 +344,10 @@ class NLToPostgresProcessor:
                 context=context,
                 nl_query=nl_query
             )
-            
             response = self.model.generate_content(
                 prompt,
                 generation_config=GENERATION_CONFIG
             )
-            
             operation, sql_query = self._extract_query_info(response.text.strip())
             
             if operation == OperationType.UNKNOWN or not sql_query:
